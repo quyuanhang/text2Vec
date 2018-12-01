@@ -53,12 +53,16 @@ def load_profile(filename, word_dict, position=False):
             datas.append(data)
     frame = pd.DataFrame(datas)
     if position:
-        jobs = frame.iloc[:, 0]
-        job_dict = {k: v for v, k in enumerate(set(jobs.values), 1)}
+        positions = frame.iloc[:, 0]
+        position_dict = {k: v for v, k in enumerate(set(positions.values), 1)}
+        position_dict['unk'] = 0
         frame = frame.iloc[:, 1:]
     frame = frame.applymap(lambda x: word_dict.get(x, 0))
     if position:
-        return job_dict, [word_dict.get(x, 0) for x in jobs.values], frame.values
+        return (
+            position_dict,
+            np.array([[position_dict.get(x, 0)] for x in positions.values]),
+            frame.values)
     return frame.values
 
 
@@ -120,8 +124,11 @@ def get_train_instances_pairwise(train, batch_size):
     return data
 
 
-def load_test(filename):
+def load_test(filename, n_sample=0):
     raw_frame = pd.read_table(filename, header=None)
+    if n_sample and n_sample < len(raw_frame):
+        print('sampling test')
+        raw_frame = raw_frame.sample(n=n_sample)
     print(raw_frame.head())
     return raw_frame.values
 

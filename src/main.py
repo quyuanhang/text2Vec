@@ -22,20 +22,17 @@ def train_model(model, n_epoch, train_instance, test_data, learning_rate, pairwi
     print('init')
     print('hit ratio: {:.6f} NDCG: {:.6f}, AUC: {:.6f}'.format(hr, ndcg, auc))
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate * 10, weight_decay=REG)
-    optimizer2 = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=REG)
+    optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=learning_rate, weight_decay=REG)
     for epoch in range(n_epoch):
         print('epoch {} \n'.format(epoch + 1) + '*' * 10)
         running_loss = 0.0
-        if epoch > 30:
-            optimizer = optimizer2
         for i, sample in enumerate(train_instance, 1):
             if pairwise:
                 batch_loss = model.batch_fit_pairwise(model, optimizer, sample, profile)
             else:
                 batch_loss = model.batch_fit(model, optimizer, sample, profile)
             running_loss += batch_loss
-            if i % (len(train_instance) // 2) == 0:
+            if i % (len(train_instance) // 5) == 0:
                 print('[{}/{}] Loss: {:.6f}'.format(
                     epoch + 1, n_epoch, running_loss / (BATCH_SIZE * i)))
         predictions = model.predict(test_data, profile)
@@ -62,7 +59,10 @@ def parse_args():
     parser.add_argument('--model', default='MF')
     parser.add_argument('--pairwise', type=bool, default=False)
     parser.add_argument('--bias', type=bool, default=True)
-    parser.add_argument('--dim', type=int, default=128)
+    parser.add_argument('--dim', type=int, default=64)
+    parser.add_argument('--n_sample', type=int, default=0)
+    parser.add_argument('--attention', type=bool, default=False)
+    parser.add_argument('--norm', type=bool, default=False)
     return parser.parse_args()
 
 
@@ -85,14 +85,13 @@ if __name__ == '__main__':
     TOP_K = args.topk
     MODEL = args.model
     PAIR = args.pairwise
-    BIAS = args.bias
     WORD_EMB_PATH = 'data/{}.word_emb'.format(args.dataset)
     GEEK_PROFILE = 'data/{}.profile.geek'.format(args.dataset)
     JOB_PROFILE = 'data/{}.profile.job'.format(args.dataset)
-    DIM = args.dim
 
     train_data = load_train(TRAIN_FILE_PATH)
-    test_data = load_test(TEST_FILE_PATH)
+    test_data = load_test(TEST_FILE_PATH, n_sample=args.n_sample)
+
     train_instance = get_train_instances(train_data, NEG_SAMPLE, BATCH_SIZE)
     word_dict, word_emb = load_word_emb(WORD_EMB_PATH)
     position_dict, job_position, job_profile = load_profile(JOB_PROFILE, word_dict, position=True)
@@ -102,7 +101,16 @@ if __name__ == '__main__':
                'position': LongTensor(job_position)}
 
     if MODEL == 'MLP':
-        model = MLP(len(word_dict), len(position_dict), (train_data.shape), DIM, BIAS, word_emb)
+        model = MLP(
+            n_word=len(word_dict),
+            n_positin=len(position_dict),
+            shape=train_data.shape,
+            emb_dim=args.dim,
+            with_bias=args.bias,
+            pretrain_emb=word_emb,
+            weight=args.attention,
+            norm=args.norm
+        )
     else:
         print('no model selected')
         sys.exit(0)

@@ -194,10 +194,10 @@ if __name__ == '__main__':
 
     profile_format(DATA_IN, DATA_OUT, job_dict, geek_dict)
 
-    # print('formating addfriend data ...')
-    # job_add = pd.read_table('{}_job.txt'.format(DATA_IN), header=None).dropna().applymap(data_format)
-    # geek_add = pd.read_table('{}_geek.txt'.format(DATA_IN), header=None).dropna().applymap(data_format)
-    # print('concating addfriend data ...')
-    # train_frame = train_frame_plus(train_frame, job_add, geek_add, job_dict, geek_dict, test_set)
-    #
-    # train_frame.to_csv('data/{}.multi.train'.format(DATA_OUT), index=False, header=False, sep='\t')
+    print('formating addfriend data ...')
+    job_add = pd.read_table('{}_job.txt'.format(DATA_IN), header=None).dropna().applymap(data_format)
+    geek_add = pd.read_table('{}_geek.txt'.format(DATA_IN), header=None).dropna().applymap(data_format)
+    print('concating addfriend data ...')
+    train_frame = train_frame_plus(train_frame, job_add, geek_add, job_dict, geek_dict, test_set)
+
+    train_frame.to_csv('data/{}.multi.train'.format(DATA_OUT), index=False, header=False, sep='\t')

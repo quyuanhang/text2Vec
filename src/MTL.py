@@ -39,23 +39,31 @@ class MTL(nn.Module):
         self.criterion = nn.MSELoss()
 
     def forward(self, *input):
-        job, geek = input
-        # print(job.shape)
-        job = self.job_emb(job)
-        geek = self.geek_emb(geek)
-        # print(job.shape)
-        x = torch.cat((job, geek), dim=-1).squeeze(dim=1)
+        jd, resume, position = input
+        jd_emb = self.jd_emb(jd)
+        resume_emb = self.resume_emb(resume)
+        if self.norm:
+            jd_wc = self.word_count(jd)
+            resume_wc = self.word_count(resume)
+            jd_emb = jd_emb / jd_wc
+            resume_emb = resume_emb / resume_wc
+        if self.weight:
+            position_emb = self.position_emb(position)
+            jd_emb = self.weighted(jd_emb, position_emb)
+            resume_emb = self.weighted(resume_emb, position_emb)
+
+        jd_emb = torch.sum(jd_emb, dim=1)
+        resume_emb = torch.sum(resume_emb, dim=1)
+
+        x = torch.cat((jd_emb, resume_emb), dim=-1).squeeze(dim=1)
         x = self.hiden1(x)
-        # print(x.shape)
         x1 = self.hiden21(x[:, :self.dim // 3])
         x2 = self.hiden22(x[:, self.dim // 6:])
         x3 = self.hiden23(x)
-        # print(x1.shape, x2.shape, x3.shape)
         x = torch.cat((x1, x2, x3), dim=-1)
-        # print(x.shape)
         return x
 
-    def predict(self, test_data):
+    def predict(self, test_data, profile):
         n_job, n_geek = self.shape
         predictions = []
         # with torch.no_grad():
@@ -64,10 +72,11 @@ class MTL(nn.Module):
             if job >= n_job:
                 continue
             geeks = [x for x in sample[1:] if x < n_geek]
-            job_tensor = Variable(LongTensor([job] * len(geeks)))
+            job_tensor_tmp = Variable(LongTensor([job] * len(geeks)))
             geeks_tensor = Variable(LongTensor(geeks))
-            job_tensor = job_tensor.view(job_tensor.shape[0], 1)
-            geeks_tensor = geeks_tensor.view(geeks_tensor.shape[0], 1)
+            position = profile['position'][job_tensor_tmp]
+            job_tensor = profile['job'][job_tensor_tmp]
+            geeks_tensor = profile['geek'][geeks_tensor]
             if USE_GPU:
                 job_tensor = job_tensor.cuda()
                 geeks_tensor = geeks_tensor.cuda()
@@ -80,22 +89,24 @@ class MTL(nn.Module):
         return predictions
 
     @staticmethod
-    def batch_fit(model, optimizer, sample):
-        # job, geek, label = sample.t()
-        job = sample[:, 0].unsqueeze(dim=1)
-        geek = sample[:, 1].unsqueeze(dim=1)
+    def batch_fit(model, optimizer, sample, profile=False):
+        job = sample[:, 0]
+        geek = sample[:, 1]
         label = sample[:, 2:]
-        # print('job size \n', job.shape)
         job = Variable(LongTensor(job))
         geek = Variable(LongTensor(geek))
-        # label = label.view(label.shape[0], 1)
         label = label.float()
+        position = profile['position'][job]
+        job = profile['job'][job]
+        geek = profile['geek'][geek]
+        label = label.view(label.shape[0], 1)
         if USE_GPU:
             job = job.cuda()
             geek = geek.cuda()
+            position = position.cuda()
             label = label.cuda()
         # 前向传播计算损失
-        out = model(job, geek)
+        out = model(job, geek, position)
         loss = model.criterion(out, label)
         # 后向传播计算梯度
         optimizer.zero_grad()

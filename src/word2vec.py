@@ -293,5 +293,10 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    w2v = Word2Vec(input_file_name=args.datain, output_file_name=args.dataout, emb_dimension=args.emb_dimension)
+    w2v = Word2Vec(
+        input_file_name=args.datain,
+        output_file_name=args.dataout,
+        emb_dimension=args.emb_dimension,
+        iteration=args.iteration
+    )
     w2v.train()
